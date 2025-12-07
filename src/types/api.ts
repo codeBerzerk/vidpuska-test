@@ -31,3 +31,34 @@ export interface SearchResult {
   hotel?: Hotel;
 }
 
+export interface Price {
+  id: string;
+  amount: number;
+  currency: string;
+  startDate: string;
+  endDate: string;
+  hotelID: number | string; // Може бути рядком (ключ об'єкта) або числом
+}
+
+export interface Tour extends Price {
+  hotel: Hotel;
+}
+
+export interface StartSearchResponse {
+  token: string;
+  waitUntil: string;
+}
+
+export interface GetSearchPricesResponse {
+  prices: Record<string, Price>;
+}
+
+export interface SearchError {
+  code: number;
+  error: boolean;
+  message: string;
+  waitUntil?: string;
+}
+
+export type SearchState = 'idle' | 'waiting' | 'polling' | 'success' | 'error' | 'empty';
+

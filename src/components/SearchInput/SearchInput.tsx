@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
-import { useFloating, autoUpdate, offset, flip, shift } from '@floating-ui/react-dom';
-import type { GeoEntity } from '../types/api';
-import { fetchCountries, searchGeoEntities } from '../utils/api';
-import { GlobeIcon, CityIcon, HotelIcon } from './Icons';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui/react-dom';
+import type { GeoEntity } from '../../types/api';
+import { fetchCountries, searchGeoEntities } from '../../utils/api';
+import { GlobeIcon, CityIcon, HotelIcon, ArrowDownIcon } from '../Icons';
 import './SearchInput.css';
 
 interface SearchInputProps {
@@ -17,32 +17,26 @@ export const SearchInput = ({ value, onChange, placeholder = 'Введіть н�
   const [options, setOptions] = useState<GeoEntity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchRequestRef = useRef<string | null>(null);
 
   const { refs, floatingStyles } = useFloating({
-    middleware: [offset(4), flip(), shift()],
+    middleware: [
+      offset(4),
+      flip(),
+      shift(),
+      size({
+        apply({ rects }) {
+          if (refs.floating.current) {
+            refs.floating.current.style.width = `${rects.reference.width}px`;
+          }
+        },
+      }),
+    ],
     whileElementsMounted: autoUpdate,
   });
 
-  // Завантаження країн при відкритті
-  useEffect(() => {
-    if (isOpen && !searchText && !value) {
-      loadCountries();
-    }
-  }, [isOpen]);
-
-  // Пошук при зміні тексту
-  useEffect(() => {
-    if (isOpen && searchText) {
-      const timeoutId = setTimeout(() => {
-        performSearch(searchText);
-      }, 300);
-      return () => clearTimeout(timeoutId);
-    } else if (isOpen && !searchText && !value) {
-      loadCountries();
-    }
-  }, [searchText, isOpen]);
-
-  const loadCountries = async () => {
+  // Визначаємо функції перед useEffect, які їх використовують
+  const loadCountries = useCallback(async () => {
     setIsLoading(true);
     try {
       const countries = await fetchCountries();
@@ -53,28 +47,64 @@ export const SearchInput = ({ value, onChange, placeholder = 'Введіть н�
       setOptions(countriesList);
     } catch (error) {
       console.error('Помилка завантаження країн:', error);
+      setOptions([]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const performSearch = async (search: string) => {
+  const performSearch = useCallback(async (search: string) => {
     if (!search.trim()) {
       loadCountries();
       return;
     }
 
+    // Зберігаємо поточний запит для перевірки актуальності
+    const currentRequest = search.trim();
+    searchRequestRef.current = currentRequest;
     setIsLoading(true);
+    
     try {
-      const results = await searchGeoEntities(search);
-      const resultsList = Object.values(results);
-      setOptions(resultsList);
+      const results = await searchGeoEntities(currentRequest);
+      
+      // Перевіряємо, чи запит все ще актуальний (не був скасований новим пошуком)
+      if (searchRequestRef.current === currentRequest) {
+        const resultsList = Object.values(results);
+        setOptions(resultsList);
+      }
     } catch (error) {
-      console.error('Помилка пошуку:', error);
+      // Показуємо помилку тільки якщо запит все ще актуальний
+      if (searchRequestRef.current === currentRequest) {
+        console.error('Помилка пошуку:', error);
+        setOptions([]);
+      }
     } finally {
-      setIsLoading(false);
+      // Скидаємо loading тільки якщо це останній запит
+      if (searchRequestRef.current === currentRequest) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [loadCountries]);
+
+  // Завантаження країн при відкритті
+  useEffect(() => {
+    if (isOpen && !searchText && !value) {
+      loadCountries();
+    }
+  }, [isOpen, loadCountries, searchText, value]);
+
+  // Пошук при зміні тексту
+  useEffect(() => {
+    if (isOpen && searchText) {
+      const timeoutId = setTimeout(() => {
+        // Використовуємо актуальне значення searchText через замикання
+        performSearch(searchText);
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    } else if (isOpen && !searchText && !value) {
+      loadCountries();
+    }
+  }, [searchText, isOpen, value, performSearch, loadCountries]);
 
   const handleInputClick = () => {
     setIsOpen(true);
@@ -171,6 +201,7 @@ export const SearchInput = ({ value, onChange, placeholder = 'Введіть н�
           onClick={handleInputClick}
           onFocus={handleInputClick}
         />
+        <ArrowDownIcon className="search-input-arrow" />
         {value && (
           <button
             type="button"

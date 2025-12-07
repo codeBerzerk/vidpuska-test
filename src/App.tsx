@@ -1,4 +1,4 @@
-import { TourSearchForm } from './components/TourSearchForm'
+import { TourSearchForm } from './components/TourSearchForm';
 import './App.css'
 
 function App() {

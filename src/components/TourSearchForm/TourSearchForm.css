@@ -1,5 +1,5 @@
 .tour-search-form-container {
-  max-width: 500px;
+  width: 500px;
   margin: 0 auto;
   padding: 24px;
   background: white;
@@ -38,7 +38,7 @@
   transition: background-color 0.2s, transform 0.1s;
 }
 
-.tour-search-form-button:hover {
+.tour-search-form-button:hover:not(:disabled) {
   background-color: #2563eb;
 }
 
