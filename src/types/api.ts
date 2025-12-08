@@ -63,3 +63,17 @@ export interface SearchError {
 
 export type SearchState = 'idle' | 'waiting' | 'polling' | 'success' | 'error' | 'empty';
 
+export interface HotelServices {
+  wifi?: 'yes' | 'no' | 'none';
+  aquapark?: 'yes' | 'no' | 'none';
+  tennis_court?: 'yes' | 'no' | 'none';
+  laundry?: 'yes' | 'no' | 'none';
+  parking?: 'yes' | 'no' | 'none';
+  [key: string]: 'yes' | 'no' | 'none' | undefined;
+}
+
+export interface HotelDetails extends Hotel {
+  description?: string;
+  services?: HotelServices;
+}
+

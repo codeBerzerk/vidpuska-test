@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { startTourSearch, fetchSearchPrices, fetchHotelsByCountry } from '../utils/api';
 import { fetchCountries } from '../utils/api';
+import { logger } from '../utils/logger';
+import { isSearchError } from '../utils/api-helpers';
+import { SEARCH_CONFIG } from '../constants/config';
 import type { Tour, SearchState, SearchError, Country, Hotel, Price } from '../types/api';
-
-const MAX_RETRIES = 2;
 
 export const useTourSearch = () => {
   const [state, setState] = useState<SearchState>('idle');
@@ -34,7 +35,7 @@ export const useTourSearch = () => {
         const countries = await fetchCountries();
         countriesCacheRef.current = countries;
       } catch (err) {
-        console.error('Помилка завантаження кешу країн:', err);
+        logger.error('Помилка завантаження кешу країн', err);
       }
     };
     loadCache();
@@ -95,7 +96,7 @@ export const useTourSearch = () => {
       
       // Перевіряємо, чи є готелі для цієї країни
       if (Object.keys(hotels).length === 0) {
-        console.log(`⚠️ Для країни ${countryID} не знайдено готелів`);
+        logger.info(`Для країни ${countryID} не знайдено готелів`);
         setState('empty');
         setTours([]);
         setIsSearching(false);
@@ -119,7 +120,7 @@ export const useTourSearch = () => {
             );
             
             if (!hotelByNumericId) {
-              console.warn(`Готель з hotelID ${price.hotelID} (ключ: ${hotelIdKey}) не знайдено. Доступні ключі:`, Object.keys(hotels));
+              logger.warn(`Готель з hotelID ${price.hotelID} (ключ: ${hotelIdKey}) не знайдено. Доступні ключі:`, Object.keys(hotels));
               return null;
             }
             
@@ -151,10 +152,9 @@ export const useTourSearch = () => {
       retryCountRef.current = 0;
     } catch (err) {
       // Перевіряємо, чи це SearchError з кодом 425 (результати ще не готові)
-      if (err && typeof err === 'object' && 'code' in err && (err as SearchError).code === 425) {
-        const error = err as SearchError;
-        if (error.waitUntil) {
-          waitUntil(error.waitUntil, () => {
+      if (isSearchError(err) && err.code === 425) {
+        if (err.waitUntil) {
+          waitUntil(err.waitUntil, () => {
             pollSearchResults(token, retryCount);
           });
           return;
@@ -162,19 +162,20 @@ export const useTourSearch = () => {
       }
 
       // Якщо помилка і є спроби для ретраю
-      if (retryCount < MAX_RETRIES) {
+      if (retryCount < SEARCH_CONFIG.MAX_RETRIES) {
         retryCountRef.current = retryCount + 1;
         setTimeout(() => {
           pollSearchResults(token, retryCount + 1);
-        }, 1000); // Затримка перед ретраєм
+        }, SEARCH_CONFIG.RETRY_DELAY_MS);
         return;
       }
 
       // Всі спроби вичерпані
-      const errorMessage = 
-        (err && typeof err === 'object' && 'message' in err && typeof (err as any).message === 'string')
-          ? (err as any).message
-          : 'Помилка пошуку турів';
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : isSearchError(err)
+        ? err.message
+        : 'Помилка пошуку турів';
       setError(errorMessage);
       setState('error');
       setIsSearching(false);

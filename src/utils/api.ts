@@ -1,8 +1,9 @@
-import type { Country, GeoEntity, StartSearchResponse, GetSearchPricesResponse, SearchError, Hotel } from '../types/api';
+import type { Country, GeoEntity, StartSearchResponse, GetSearchPricesResponse, SearchError, Hotel, HotelDetails, Price } from '../types/api';
+import { handleApiResponse } from './api-helpers';
 
 // Імпортуємо методи з api.js
 // @ts-ignore - api.js не має типів
-import { getCountries, searchGeo, startSearchPrices, getSearchPrices, getHotels } from '../../api.js';
+import { getCountries, searchGeo, startSearchPrices, getSearchPrices, getHotels, getHotel, getPrice } from '../../api.js';
 
 export const fetchCountries = async (): Promise<Record<string, Country>> => {
   const response = await getCountries();
@@ -19,12 +20,7 @@ export const searchGeoEntities = async (search: string): Promise<Record<string, 
 export const startTourSearch = async (countryID: string): Promise<StartSearchResponse> => {
   try {
     const response = await startSearchPrices(countryID);
-    if (!response.ok) {
-      const error: SearchError = await response.json();
-      throw new Error(error.message || 'Помилка запуску пошуку');
-    }
-    const data: StartSearchResponse = await response.json();
-    return data;
+    return await handleApiResponse<StartSearchResponse>(response, 'Помилка запуску пошуку');
   } catch (error) {
     if (error instanceof Error) {
       throw error;
@@ -55,5 +51,29 @@ export const fetchHotelsByCountry = async (countryID: string): Promise<Record<st
   const response = await getHotels(countryID);
   const data: Record<string, Hotel> = await response.json();
   return data;
+};
+
+export const fetchHotel = async (hotelId: number): Promise<HotelDetails> => {
+  try {
+    const response = await getHotel(hotelId);
+    return await handleApiResponse<HotelDetails>(response, 'Помилка завантаження готелю');
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Невідома помилка при завантаженні готелю');
+  }
+};
+
+export const fetchPrice = async (priceId: string): Promise<Price> => {
+  try {
+    const response = await getPrice(priceId);
+    return await handleApiResponse<Price>(response, 'Помилка завантаження ціни');
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Невідома помилка при завантаженні ціни');
+  }
 };
 

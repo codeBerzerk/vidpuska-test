@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui/react-dom';
 import type { GeoEntity } from '../../types/api';
 import { fetchCountries, searchGeoEntities } from '../../utils/api';
+import { logger } from '../../utils/logger';
+import { UI_CONFIG } from '../../constants/config';
 import { GlobeIcon, CityIcon, HotelIcon, ArrowDownIcon } from '../Icons';
 import './SearchInput.css';
 
@@ -46,7 +48,7 @@ export const SearchInput = ({ value, onChange, placeholder = 'Введіть н�
       }));
       setOptions(countriesList);
     } catch (error) {
-      console.error('Помилка завантаження країн:', error);
+      logger.error('Помилка завантаження країн', error);
       setOptions([]);
     } finally {
       setIsLoading(false);
@@ -75,7 +77,7 @@ export const SearchInput = ({ value, onChange, placeholder = 'Введіть н�
     } catch (error) {
       // Показуємо помилку тільки якщо запит все ще актуальний
       if (searchRequestRef.current === currentRequest) {
-        console.error('Помилка пошуку:', error);
+        logger.error('Помилка пошуку', error);
         setOptions([]);
       }
     } finally {
@@ -99,7 +101,7 @@ export const SearchInput = ({ value, onChange, placeholder = 'Введіть н�
       const timeoutId = setTimeout(() => {
         // Використовуємо актуальне значення searchText через замикання
         performSearch(searchText);
-      }, 300);
+      }, UI_CONFIG.SEARCH_DEBOUNCE_MS);
       return () => clearTimeout(timeoutId);
     } else if (isOpen && !searchText && !value) {
       loadCountries();

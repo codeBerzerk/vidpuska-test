@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import type { Tour } from '../../types/api';
 import { formatDate, formatPrice } from '../../utils/format';
 import './TourCard.css';
@@ -8,11 +9,15 @@ interface TourCardProps {
 }
 
 export const TourCard = ({ tour, onOpenPrice }: TourCardProps) => {
+  const navigate = useNavigate();
   const { hotel, startDate, endDate, amount, currency, id } = tour;
 
   const handleOpenPrice = () => {
     if (onOpenPrice) {
       onOpenPrice(id);
+    } else {
+      // За замовчуванням використовуємо навігацію
+      navigate(`/tour/${id}/${hotel.id}`);
     }
   };
 
