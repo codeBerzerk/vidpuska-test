@@ -1,5 +1,5 @@
 .tour-search-form-container {
-  width: 500px;
+  width: 700px;
   margin: 0 auto;
   padding: 24px;
   background: white;
@@ -56,4 +56,5 @@
   cursor: not-allowed;
   transform: none;
 }
+
 

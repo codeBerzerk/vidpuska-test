@@ -110,7 +110,7 @@ export const useTourSearch = () => {
           const hotelIdKey = String(price.hotelID);
           
           // Прямий доступ до об'єкта hotels за ключем (рядок)
-          const hotel = hotels[hotelIdKey];
+          let hotel = hotels[hotelIdKey];
           
           if (!hotel) {
             // Якщо не знайшли за ключем, спробуємо знайти за числовим ID
@@ -123,15 +123,17 @@ export const useTourSearch = () => {
               return null;
             }
             
-            return {
-              ...price,
-              hotel: hotelByNumericId,
-            };
+            hotel = hotelByNumericId;
           }
+          
+          // Отримуємо прапорець країни з кешу
+          const country = countriesCacheRef.current[hotel.countryId];
+          const countryFlag = country?.flag;
           
           return {
             ...price,
             hotel,
+            countryFlag,
           };
         })
         .filter((tour): tour is Tour => tour !== null);

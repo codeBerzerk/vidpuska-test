@@ -1,0 +1,2 @@
+export { ToursList } from './ToursList';
+

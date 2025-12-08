@@ -42,6 +42,7 @@ export interface Price {
 
 export interface Tour extends Price {
   hotel: Hotel;
+  countryFlag?: string; // Прапорець країни для відображення
 }
 
 export interface StartSearchResponse {

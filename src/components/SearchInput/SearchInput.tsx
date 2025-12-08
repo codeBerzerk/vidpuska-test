@@ -249,3 +249,4 @@ export const SearchInput = ({ value, onChange, placeholder = 'Введіть н�
   );
 };
 
+
