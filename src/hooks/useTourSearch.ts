@@ -17,6 +17,8 @@ export const useTourSearch = () => {
   const tokenRef = useRef<string | null>(null);
   const activeTokenRef = useRef<string | null>(null); // Токен поточного активного пошуку
   const countryIDRef = useRef<string | null>(null);
+  const cityIDRef = useRef<number | null>(null); // ID міста для фільтрації
+  const hotelIDRef = useRef<number | null>(null); // ID готелю для фільтрації
   const hotelsCacheRef = useRef<Record<string, Record<string, Hotel>>>({});
   const countriesCacheRef = useRef<Record<string, Country>>({});
   const isCancellingRef = useRef(false);
@@ -72,6 +74,8 @@ export const useTourSearch = () => {
     tokenRef.current = null;
     activeTokenRef.current = null;
     countryIDRef.current = null;
+    cityIDRef.current = null;
+    hotelIDRef.current = null;
     retryCountRef.current = 0;
   }, []);
 
@@ -180,13 +184,30 @@ export const useTourSearch = () => {
         return;
       }
 
+      // Фільтруємо тури за містом або готелем, якщо вказано
+      let filteredTours = toursData;
+      if (cityIDRef.current !== null) {
+        filteredTours = toursData.filter(tour => tour.hotel.cityId === cityIDRef.current);
+        logger.info(`Фільтрація по місту ${cityIDRef.current}: знайдено ${filteredTours.length} з ${toursData.length} турів`);
+      } else if (hotelIDRef.current !== null) {
+        filteredTours = toursData.filter(tour => tour.hotel.id === hotelIDRef.current);
+        logger.info(`Фільтрація по готелю ${hotelIDRef.current}: знайдено ${filteredTours.length} з ${toursData.length} турів`);
+      }
+
+      if (filteredTours.length === 0) {
+        setState('empty');
+        setTours([]);
+        setIsSearching(false);
+        return;
+      }
+
       // Фінальна перевірка перед встановленням результатів
       if (activeTokenRef.current !== token || isCancellingRef.current) {
         logger.info(`Ігноруємо результати для скасованого токену: ${token}`);
         return;
       }
 
-      setTours(toursData);
+      setTours(filteredTours);
       setState('success');
       setIsSearching(false);
       retryCountRef.current = 0;
@@ -229,7 +250,7 @@ export const useTourSearch = () => {
     }
   }, [waitUntil]);
 
-  const searchTours = useCallback(async (countryID: string) => {
+  const searchTours = useCallback(async (countryID: string, filters?: { cityId?: number; hotelId?: number }) => {
     // Якщо є активний пошук, спочатку скасовуємо його
     const previousToken = tokenRef.current || activeTokenRef.current;
     if (previousToken && isSearching) {
@@ -262,6 +283,8 @@ export const useTourSearch = () => {
     setIsSearching(true);
     setState('waiting');
     countryIDRef.current = countryID;
+    cityIDRef.current = filters?.cityId ?? null;
+    hotelIDRef.current = filters?.hotelId ?? null;
 
     try {
       const { token, waitUntil: waitUntilTime } = await startTourSearch(countryID);
@@ -282,6 +305,8 @@ export const useTourSearch = () => {
       setState('error');
       setIsSearching(false);
       countryIDRef.current = null;
+      cityIDRef.current = null;
+      hotelIDRef.current = null;
       tokenRef.current = null;
       activeTokenRef.current = null;
     }

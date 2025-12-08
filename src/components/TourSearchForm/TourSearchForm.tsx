@@ -15,12 +15,24 @@ export const TourSearchForm = () => {
     if (selectedDestination && selectedDestination.type === 'country') {
       searchTours(selectedDestination.id);
     } else if (selectedDestination) {
-      // Якщо вибрано місто або готель, використовуємо countryId
+      // Якщо вибрано місто або готель, використовуємо countryId та передаємо фільтри
       const countryId = 'countryId' in selectedDestination 
         ? selectedDestination.countryId 
         : null;
       if (countryId) {
-        searchTours(countryId);
+        const filters: { cityId?: number; hotelId?: number } = {};
+        
+        if (selectedDestination.type === 'city') {
+          filters.cityId = selectedDestination.id;
+        } else if (selectedDestination.type === 'hotel') {
+          filters.hotelId = selectedDestination.id;
+          // Якщо вибрано готель, також фільтруємо по місту цього готелю
+          if ('cityId' in selectedDestination) {
+            filters.cityId = selectedDestination.cityId;
+          }
+        }
+        
+        searchTours(countryId, filters);
       }
     }
   };

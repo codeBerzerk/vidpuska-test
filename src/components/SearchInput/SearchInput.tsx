@@ -62,17 +62,63 @@ export const SearchInput = ({ value, onChange, placeholder = 'Введіть н�
     }
 
     // Зберігаємо поточний запит для перевірки актуальності
-    const currentRequest = search.trim();
+    const currentRequest = search.trim().toLowerCase();
     searchRequestRef.current = currentRequest;
     setIsLoading(true);
     
     try {
-      const results = await searchGeoEntities(currentRequest);
+      const results = await searchGeoEntities(search.trim());
       
       // Перевіряємо, чи запит все ще актуальний (не був скасований новим пошуком)
       if (searchRequestRef.current === currentRequest) {
         const resultsList = Object.values(results);
-        setOptions(resultsList);
+        
+        // Фільтруємо результати по тексту пошуку для точнішого пошуку
+        const searchLower = currentRequest;
+        const filteredResults = resultsList.filter((entity) => {
+          const nameMatch = entity.name.toLowerCase().includes(searchLower);
+          
+          // Для готелів також перевіряємо місто та країну
+          if (entity.type === 'hotel') {
+            const hotel = entity as typeof entity & { cityName?: string; countryName?: string };
+            const cityMatch = hotel.cityName?.toLowerCase().includes(searchLower);
+            const countryMatch = hotel.countryName?.toLowerCase().includes(searchLower);
+            return nameMatch || cityMatch || countryMatch;
+          }
+          
+          // Для міст залишаємо тільки перевірку назви
+          if (entity.type === 'city') {
+            return nameMatch;
+          }
+          
+          return nameMatch;
+        });
+        
+        // Сортуємо результати: точні збіги спочатку, потім часткові
+        filteredResults.sort((a, b) => {
+          const aNameLower = a.name.toLowerCase();
+          const bNameLower = b.name.toLowerCase();
+          
+          // Точний збіг на початку
+          if (aNameLower.startsWith(searchLower) && !bNameLower.startsWith(searchLower)) {
+            return -1;
+          }
+          if (!aNameLower.startsWith(searchLower) && bNameLower.startsWith(searchLower)) {
+            return 1;
+          }
+          
+          // Країни першими, потім міста, потім готелі
+          const typeOrder = { country: 0, city: 1, hotel: 2 };
+          const aType = (a.type || 'hotel') as keyof typeof typeOrder;
+          const bType = (b.type || 'hotel') as keyof typeof typeOrder;
+          if (typeOrder[aType] !== typeOrder[bType]) {
+            return typeOrder[aType] - typeOrder[bType];
+          }
+          
+          return a.name.localeCompare(b.name);
+        });
+        
+        setOptions(filteredResults);
       }
     } catch (error) {
       // Показуємо помилку тільки якщо запит все ще актуальний
@@ -88,12 +134,25 @@ export const SearchInput = ({ value, onChange, placeholder = 'Введіть н�
     }
   }, [loadCountries]);
 
-  // Завантаження країн при відкритті
+  // Завантаження опцій при відкритті / фокусі
   useEffect(() => {
-    if (isOpen && !searchText && !value) {
-      loadCountries();
+    if (!isOpen) return;
+
+    // Якщо нічого не введено
+    if (!searchText) {
+      // Якщо вже є вибраний напрям – показуємо релевантні опції
+      if (value) {
+        if (value.type === 'country') {
+          loadCountries();
+        } else {
+          // Для міста/готелю підтягуємо пошук за його назвою
+          performSearch(value.name);
+        }
+      } else {
+        loadCountries();
+      }
     }
-  }, [isOpen, loadCountries, searchText, value]);
+  }, [isOpen, loadCountries, performSearch, searchText, value]);
 
   // Пошук при зміні тексту
   useEffect(() => {
