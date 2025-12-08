@@ -1,9 +1,8 @@
 import type { Country, GeoEntity, StartSearchResponse, GetSearchPricesResponse, SearchError, Hotel, HotelDetails, Price } from '../types/api';
 import { handleApiResponse } from './api-helpers';
 
-// Імпортуємо методи з api.js
-// @ts-ignore - api.js не має типів
-import { getCountries, searchGeo, startSearchPrices, getSearchPrices, getHotels, getHotel, getPrice } from '../../api.js';
+// @ts-ignore
+import { getCountries, searchGeo, startSearchPrices, getSearchPrices, getHotels, getHotel, getPrice, stopSearchPrices } from '../../api.js';
 
 export const fetchCountries = async (): Promise<Record<string, Country>> => {
   const response = await getCountries();
@@ -74,6 +73,33 @@ export const fetchPrice = async (priceId: string): Promise<Price> => {
       throw error;
     }
     throw new Error('Невідома помилка при завантаженні ціни');
+  }
+};
+
+export const cancelTourSearch = async (token: string): Promise<void> => {
+  try {
+    const response = await stopSearchPrices(token);
+    if (!response.ok) {
+      // Якщо пошук вже не існує, це не критична помилка
+      const error: SearchError = await response.json();
+      if (error.code === 404) {
+        // Пошук вже скасований або не існує - це нормально
+        return;
+      }
+      throw new Error(error.message || 'Помилка скасування пошуку');
+    }
+  } catch (error) {
+    // Якщо помилка 404 - ігноруємо (пошук вже не існує)
+    if (error instanceof Response) {
+      const errorData: SearchError = await error.json();
+      if (errorData.code === 404) {
+        return;
+      }
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Невідома помилка при скасуванні пошуку');
   }
 };
 

@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { startTourSearch, fetchSearchPrices, fetchHotelsByCountry } from '../utils/api';
+import { startTourSearch, fetchSearchPrices, fetchHotelsByCountry, cancelTourSearch } from '../utils/api';
 import { fetchCountries } from '../utils/api';
 import { logger } from '../utils/logger';
 import { isSearchError } from '../utils/api-helpers';
 import { SEARCH_CONFIG } from '../constants/config';
-import type { Tour, SearchState, SearchError, Country, Hotel, Price } from '../types/api';
+import type { Tour, SearchState, Country, Hotel, Price } from '../types/api';
 
 export const useTourSearch = () => {
   const [state, setState] = useState<SearchState>('idle');
@@ -15,9 +15,11 @@ export const useTourSearch = () => {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCountRef = useRef(0);
   const tokenRef = useRef<string | null>(null);
+  const activeTokenRef = useRef<string | null>(null); // Токен поточного активного пошуку
   const countryIDRef = useRef<string | null>(null);
   const hotelsCacheRef = useRef<Record<string, Record<string, Hotel>>>({});
   const countriesCacheRef = useRef<Record<string, Country>>({});
+  const isCancellingRef = useRef(false);
 
   // Очищення таймерів при розмонтуванні
   useEffect(() => {
@@ -41,14 +43,34 @@ export const useTourSearch = () => {
     loadCache();
   }, []);
 
-  const stopSearch = useCallback(() => {
+  const stopSearch = useCallback(async () => {
+    // Очищаємо таймери
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+
+    // Скасовуємо пошук на сервері, якщо є активний токен
+    const currentToken = tokenRef.current || activeTokenRef.current;
+    if (currentToken && !isCancellingRef.current) {
+      isCancellingRef.current = true;
+      setState('cancelling');
+      
+      try {
+        await cancelTourSearch(currentToken);
+      } catch (err) {
+        // Ігноруємо помилки скасування (пошук може вже бути завершеним)
+        logger.warn('Помилка скасування пошуку', err);
+      } finally {
+        isCancellingRef.current = false;
+      }
+    }
+
+    // Очищаємо стан
     setIsSearching(false);
     setState('idle');
     tokenRef.current = null;
+    activeTokenRef.current = null;
     countryIDRef.current = null;
     retryCountRef.current = 0;
   }, []);
@@ -66,9 +88,21 @@ export const useTourSearch = () => {
   }, []);
 
   const pollSearchResults = useCallback(async (token: string, retryCount: number = 0) => {
+    // Перевіряємо, чи це все ще актуальний токен (захист від race conditions)
+    if (activeTokenRef.current !== token || isCancellingRef.current) {
+      logger.info(`Ігноруємо відповідь для скасованого токену: ${token}`);
+      return;
+    }
+
     try {
       setState('polling');
       const response = await fetchSearchPrices(token);
+
+      // Додаткова перевірка після запиту
+      if (activeTokenRef.current !== token || isCancellingRef.current) {
+        logger.info(`Ігноруємо відповідь для скасованого токену після запиту: ${token}`);
+        return;
+      }
 
       // Результати готові
       const prices = Object.values(response.prices);
@@ -105,7 +139,7 @@ export const useTourSearch = () => {
 
       // Формуємо тури, зіставляючи ціни з готелями
       // В API hotelID - це рядок (ключ об'єкта hotels), тому використовуємо прямий доступ
-      const toursData: Tour[] = prices
+      const toursData = prices
         .map((price: Price) => {
           // hotelID з API - це рядок (ключ об'єкта hotels)
           const hotelIdKey = String(price.hotelID);
@@ -134,8 +168,8 @@ export const useTourSearch = () => {
           return {
             ...price,
             hotel,
-            countryFlag,
-          };
+            countryFlag: countryFlag || undefined,
+          } as Tour;
         })
         .filter((tour): tour is Tour => tour !== null);
 
@@ -146,11 +180,23 @@ export const useTourSearch = () => {
         return;
       }
 
+      // Фінальна перевірка перед встановленням результатів
+      if (activeTokenRef.current !== token || isCancellingRef.current) {
+        logger.info(`Ігноруємо результати для скасованого токену: ${token}`);
+        return;
+      }
+
       setTours(toursData);
       setState('success');
       setIsSearching(false);
       retryCountRef.current = 0;
     } catch (err) {
+      // Перевіряємо, чи це все ще актуальний токен перед обробкою помилок
+      if (activeTokenRef.current !== token || isCancellingRef.current) {
+        logger.info(`Ігноруємо помилку для скасованого токену: ${token}`);
+        return;
+      }
+
       // Перевіряємо, чи це SearchError з кодом 425 (результати ще не готові)
       if (isSearchError(err) && err.code === 425) {
         if (err.waitUntil) {
@@ -184,9 +230,33 @@ export const useTourSearch = () => {
   }, [waitUntil]);
 
   const searchTours = useCallback(async (countryID: string) => {
-    // Очищаємо попередній пошук
-    stopSearch();
+    // Якщо є активний пошук, спочатку скасовуємо його
+    const previousToken = tokenRef.current || activeTokenRef.current;
+    if (previousToken && isSearching) {
+      // Позначаємо попередній пошук як скасовується
+      isCancellingRef.current = true;
+      setState('cancelling');
+      
+      try {
+        await cancelTourSearch(previousToken);
+      } catch (err) {
+        // Ігноруємо помилки скасування (пошук може вже бути завершеним)
+        logger.warn('Помилка скасування попереднього пошуку', err);
+      } finally {
+        isCancellingRef.current = false;
+      }
 
+      // Очищаємо таймери та стан попереднього пошуку
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      tokenRef.current = null;
+      activeTokenRef.current = null;
+      retryCountRef.current = 0;
+    }
+
+    // Очищаємо попередні результати та помилки
     setError(null);
     setTours([]);
     setIsSearching(true);
@@ -195,10 +265,16 @@ export const useTourSearch = () => {
 
     try {
       const { token, waitUntil: waitUntilTime } = await startTourSearch(countryID);
+      
+      // Встановлюємо новий активний токен
       tokenRef.current = token;
+      activeTokenRef.current = token;
 
       waitUntil(waitUntilTime, () => {
-        pollSearchResults(token);
+        // Перевіряємо, чи токен все ще актуальний перед запуском polling
+        if (activeTokenRef.current === token && !isCancellingRef.current) {
+          pollSearchResults(token);
+        }
       });
     } catch (err) {
       const error = err as Error;
@@ -206,8 +282,10 @@ export const useTourSearch = () => {
       setState('error');
       setIsSearching(false);
       countryIDRef.current = null;
+      tokenRef.current = null;
+      activeTokenRef.current = null;
     }
-  }, [stopSearch, waitUntil, pollSearchResults]);
+  }, [stopSearch, waitUntil, pollSearchResults, isSearching]);
 
   return {
     state,

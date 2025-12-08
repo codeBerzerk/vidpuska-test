@@ -25,7 +25,7 @@ export const TourSearchForm = () => {
     }
   };
 
-  const isSubmitDisabled = !selectedDestination || isSearching;
+  const isSubmitDisabled = !selectedDestination || isSearching || state === 'cancelling';
 
   return (
     <>
@@ -44,7 +44,7 @@ export const TourSearchForm = () => {
             className="tour-search-form-button"
             disabled={isSubmitDisabled}
           >
-            {isSearching ? 'Пошук...' : 'Знайти'}
+            {state === 'cancelling' ? 'Скасування...' : isSearching ? 'Пошук...' : 'Знайти'}
           </button>
         </form>
         <SearchStates state={state} error={error} />

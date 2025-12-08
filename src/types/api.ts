@@ -61,7 +61,7 @@ export interface SearchError {
   waitUntil?: string;
 }
 
-export type SearchState = 'idle' | 'waiting' | 'polling' | 'success' | 'error' | 'empty';
+export type SearchState = 'idle' | 'waiting' | 'polling' | 'success' | 'error' | 'empty' | 'cancelling';
 
 export interface HotelServices {
   wifi?: 'yes' | 'no' | 'none';

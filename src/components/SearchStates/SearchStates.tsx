@@ -7,12 +7,14 @@ interface SearchStatesProps {
 }
 
 export const SearchStates = ({ state, error }: SearchStatesProps) => {
-  if (state === 'waiting' || state === 'polling') {
+  if (state === 'waiting' || state === 'polling' || state === 'cancelling') {
     return (
       <div className="search-loading">
         <div className="search-loading-spinner" />
         <p className="search-loading-text">
-          {state === 'waiting' ? 'Очікування результатів...' : 'Завантаження результатів...'}
+          {state === 'waiting' && 'Очікування результатів...'}
+          {state === 'polling' && 'Завантаження результатів...'}
+          {state === 'cancelling' && 'Скасування пошуку...'}
         </p>
       </div>
     );

@@ -10,7 +10,7 @@ interface TourCardProps {
 
 export const TourCard = ({ tour, onOpenPrice }: TourCardProps) => {
   const navigate = useNavigate();
-  const { hotel, startDate, endDate, amount, currency, id } = tour;
+  const { hotel, startDate, amount, currency, id } = tour;
 
   const handleOpenPrice = () => {
     if (onOpenPrice) {
